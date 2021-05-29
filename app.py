@@ -8,6 +8,7 @@ import datetime as dt
 from dateutil.relativedelta import relativedelta
 
 from flask import Flask, jsonify
+from sqlalchemy.sql.expression import desc
 
 
 #################################################
@@ -119,7 +120,7 @@ def tobs():
 
 @app.route("/api/v1.0/<start>")
 def tobs_with_start_date(start):
-    print("Inside TOBS endpoint with start date")
+    print(f"Inside TOBS endpoint with start date {start}")
 
     # Create our session (link) from Python to the DB
     session = Session(engine)
@@ -132,16 +133,41 @@ def tobs_with_start_date(start):
     
     results = session.query(*sel).\
             filter(Measurement.date >= start).\
+            group_by(Measurement.station).\
+            order_by((Measurement.date).desc()).\
             all()
         
     session.close()
 
-    #all_info = [{"date":result[0], "min":result[1], "avg":result[2], "max":result[3]} for result in results]
-    all_data = []
-    for x in results:
-        all_data.append({'date': x[0],'avg tobs': x[1],'max tobs': x[2],'min tobs': x[3]})
+    all_info = [{"date":result[0], "min":result[1], "avg":result[2], "max":result[3]} for result in results]
 
-    return jsonify(all_data)
+    return jsonify(all_info)
+
+@app.route("/api/v1.0/<start>/<end>")
+def tobs_with_both_date(start, end):
+    print("Inside TOBS endpoint with both dates")
+
+    # Create our session (link) from Python to the DB
+    session = Session(engine)
+
+    sel = [ Measurement.date, 
+            func.min(Measurement.tobs),
+            func.avg(Measurement.tobs), 
+            func.max(Measurement.tobs)
+           ]
+    
+    results = session.query(*sel).\
+            filter(Measurement.date >= start).\
+            filter(Measurement.date <= end).\
+            group_by(Measurement.station).\
+            order_by((Measurement.date).desc()).\
+            all()
+        
+    session.close()
+
+    all_info = [{"date":result[0], "min":result[1], "avg":result[2], "max":result[3]} for result in results]
+
+    return jsonify(all_info)
 
 if __name__ == '__main__':
     app.run(debug=True)
